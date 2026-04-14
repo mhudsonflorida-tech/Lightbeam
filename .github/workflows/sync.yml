@@ -1,0 +1,69 @@
+name: Sync Prospect Locations
+
+on:
+  # Run automatically every weekday morning
+  schedule:
+    - cron: '0 11 * * 1-5'   # 7 AM ET (UTC-4) Mon–Fri
+
+  # Also lets you click "Run workflow" in GitHub Actions UI at any time
+  workflow_dispatch:
+    inputs:
+      force_all:
+        description: 'Re-sync ALL prospects (not just ones missing a location)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      dry_run:
+        description: 'Dry run – show what would change without writing to Outreach'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  sync:
+    name: Sync LinkedIn → Outreach locations
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run location sync
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.force_all }}" = "true" ]; then
+            ARGS="$ARGS --force-all"
+          fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          npx ts-node src/index.ts sync $ARGS
+        env:
+          OUTREACH_CLIENT_ID: ${{ secrets.OUTREACH_CLIENT_ID }}
+          OUTREACH_CLIENT_SECRET: ${{ secrets.OUTREACH_CLIENT_SECRET }}
+          OUTREACH_ACCESS_TOKEN: ${{ secrets.OUTREACH_ACCESS_TOKEN }}
+          OUTREACH_REFRESH_TOKEN: ${{ secrets.OUTREACH_REFRESH_TOKEN }}
+          OUTREACH_LOCATION_FIELD: ${{ secrets.OUTREACH_LOCATION_FIELD }}
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_REFRESH_TOKEN: ${{ secrets.LINKEDIN_REFRESH_TOKEN }}
+          SYNC_BATCH_SIZE: '50'
+          SYNC_CONCURRENCY: '5'
+          RATE_LIMIT_DELAY_MS: '500'
